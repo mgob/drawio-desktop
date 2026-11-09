@@ -1,4 +1,4 @@
-export const validFormatRegExp = /^(pdf|svg|png|jpeg|jpg|xml|html)$/;
+export const validFormatRegExp = /^(pdf|svg|png|jpeg|jpg|xml|html|vsdx)$/;
 
 export function parseBool(val) { return val === 'true'; }
 
@@ -25,7 +25,7 @@ const OPTION_DEFS = [
 	{ short: '-f', long: '--format',           key: 'format',         takesValue: true,
 	  valueLabel: '<format>',
 	  parse: v => validFormatRegExp.test(v) ? v : null,               default: 'pdf',
-	  desc: 'if output file name extension is specified, this option is ignored (file type is determined from output extension, possible export formats are pdf, png, jpg, svg, xml, and html)' },
+	  desc: 'if output file name extension is specified, this option is ignored (file type is determined from output extension, possible export formats are pdf, png, jpg, svg, xml, html, and vsdx)' },
 	{              long: '--layout',            key: 'layout',         takesValue: true,
 	  valueLabel: '<name|json>',
 	  desc: 'run a layout on the diagram after opening it (applies on open and before export). Either a preset name (verticalFlow, horizontalFlow, verticalTree, horizontalTree, radialTree, organic) or a custom-layout JSON array as used by the Layout dialog, e.g. [{"layout":"elkLayered","config":{"elk.direction":"RIGHT"}}], for layout sequences and per-layout options' },

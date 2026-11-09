@@ -1,3 +1,13 @@
+Fork: Visio export restored
+---------------------------
+
+This fork puts back Visio (.vsdx) export, which upstream removed from the open source build:
+
+- **GUI:** File > Export as > VSDX (beta)...
+- **CLI:** `draw.io --export --format vsdx --output diagram.vsdx diagram.drawio` (all pages; PNG, PDF and SVG inputs with an embedded diagram work too)
+
+The exporter is the last Apache 2.0 version from `jgraph/drawio`, kept in [src/main/vsdx](src/main/vsdx/README.md) and injected at runtime, so the `drawio` submodule is unmodified. Build it as described in [doc/BUILDING_FOR_PERSONAL_USE.md](doc/BUILDING_FOR_PERSONAL_USE.md).
+
 About
 ----- 
 

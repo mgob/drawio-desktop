@@ -18,6 +18,7 @@ import { getPrintOptions } from './print-options.js';
 import { readPngXml } from './png-xml.js';
 import { readPdfXml } from './pdf-xml.js';
 import { buildHtmlExport } from './html-export.js';
+import { injectVsdxExport } from './vsdx-export.js';
 import FileWatcher from './file-watcher.js';
 import { ConfigPathGrants } from './config-paths.js';
 import { getUrlParams, getUrlParamsFiles } from './url-params.js';
@@ -1455,7 +1456,7 @@ app.whenReady().then(() =>
 									mockEvent.reply('export-error', msg);
 								};
 
-								if (format === 'html')
+								if (format === 'html' || format === 'vsdx')
 								{
 									var xml = expArgs.xml;
 
@@ -1494,27 +1495,34 @@ app.whenReady().then(() =>
 									// HTML page without a diagram
 									else if (expArgs.csv != null)
 									{
-										mockEvent.reply('export-error', 'CSV to HTML export is not supported');
+										mockEvent.reply('export-error', 'CSV to ' + format.toUpperCase() + ' export is not supported');
 										return;
 									}
 									else if (expArgs.mermaid != null)
 									{
-										mockEvent.reply('export-error', 'Mermaid to HTML export is not supported');
+										mockEvent.reply('export-error', 'Mermaid to ' + format.toUpperCase() + ' export is not supported');
 										return;
 									}
 									else if (expArgs.layout)
 									{
-										mockEvent.reply('export-error', 'Layout is not supported for HTML export');
+										mockEvent.reply('export-error', 'Layout is not supported for ' + format.toUpperCase() + ' export');
 										return;
 									}
 									else if (expArgs.normalize)
 									{
-										mockEvent.reply('export-error', 'Normalize is not supported for HTML export');
+										mockEvent.reply('export-error', 'Normalize is not supported for ' + format.toUpperCase() + ' export');
 										return;
 									}
 
-									var title = path.basename(curFile, path.extname(curFile));
-									mockEvent.reply('export-success', buildHtmlExport(xml, title, options));
+									if (format === 'vsdx')
+									{
+										exportVsdx(mockEvent, xml);
+									}
+									else
+									{
+										var title = path.basename(curFile, path.extname(curFile));
+										mockEvent.reply('export-success', buildHtmlExport(xml, title, options));
+									}
 								}
 								else
 								{
@@ -2685,6 +2693,80 @@ function addDiagramAnnotations(pdfDoc, annots)
 		log.error('Failed to add PDF annotations:', e);
 	}
 }
+
+// CLI only: loads the diagram into a hidden editor window, where the restored
+// VsdxExport (src/main/vsdx) writes the .vsdx. Replies with a Buffer.
+function exportVsdx(event, xml)
+{
+	let win = null;
+
+	// The CLI calls finalize after the reply, and after abort on timeout
+	event.finalize = function()
+	{
+		if (win != null && !win.isDestroyed())
+		{
+			win.destroy();
+		}
+	};
+
+	try
+	{
+		win = new BrowserWindow({
+			show: false,
+			webPreferences: {
+				preload: `${__dirname}/electron-preload.js`,
+				backgroundThrottling: false,
+				contextIsolation: true,
+				nodeIntegration: false,
+				webviewTag: false,
+				webSecurity: true,
+				disableBlinkFeatures: 'Auxclick'
+			}
+		});
+
+		const contents = win.webContents;
+
+		contents.ipc.once('app-load-finished', async (e) =>
+		{
+			if (!validateSender(e.senderFrame)) return;
+
+			await injectVsdxExport(contents);
+
+			contents.ipc.once('export-vsdx-finished', (e, data) =>
+			{
+				if (!validateSender(e.senderFrame)) return;
+
+				if (typeof data === 'string' && data.length > 0)
+				{
+					event.reply('export-success', Buffer.from(data, 'base64'));
+				}
+				else
+				{
+					event.reply('export-error', 'VSDX export failed');
+				}
+			});
+
+			contents.send('export-vsdx', {xml: xml});
+		});
+
+		contents.on('render-process-gone', () =>
+		{
+			event.reply('export-error', 'VSDX export window crashed');
+		});
+
+		win.loadURL(url.format(
+		{
+			pathname: `${codeDir}/index.html`,
+			protocol: 'file:',
+			query: queryObj,
+			slashes: true
+		}));
+	}
+	catch (e)
+	{
+		event.reply('export-error', e);
+	}
+};
 
 async function mergePdfs(pdfFiles, xml, annots)
 {
@@ -4124,6 +4206,7 @@ ipcMain.on('app-load-finished', (e) =>
 	if (!validateSender(e.senderFrame)) return null;
 
 	configPathGrants.collect(e.sender);
+	injectVsdxExport(e.sender);
 });
 
 ipcMain.on("rendererReq", async (event, args) =>
